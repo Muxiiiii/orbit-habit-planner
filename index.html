@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Orbit Habit Planner</title><meta name="description" content="Orbit: a habit planner built around time."><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='16' rx='14' ry='6.5' fill='none' stroke='%2358617F' stroke-width='1.6' transform='rotate(-24 16 16)'/%3E%3Ccircle cx='16' cy='16' r='6.5' fill='%232F45E0'/%3E%3Ccircle cx='27.2' cy='10.6' r='2.6' fill='%23B8740F'/%3E%3C/svg%3E"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Orbit Habit Planner</title><meta name="description" content="Orbit: a habit planner built around time."><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#2F45E0"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Orbit"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='16' rx='14' ry='6.5' fill='none' stroke='%2358617F' stroke-width='1.6' transform='rotate(-24 16 16)'/%3E%3Ccircle cx='16' cy='16' r='6.5' fill='%232F45E0'/%3E%3Ccircle cx='27.2' cy='10.6' r='2.6' fill='%23B8740F'/%3E%3C/svg%3E"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
@@ -1638,10 +1638,43 @@ function openSettings() {
       <div class="field"><span class="lbl">Try a celebration</span><div class="effects">${EFFECTS.map(e => `<button type="button" class="effect" data-act="try-effect" data-v="${e.id}">${effectThumb(e.id)}<span>${e.name}</span></button>`).join('')}</div>
         <p class="hint">Each habit picks its own effect and sound in its edit screen.</p></div>
       <div class="field"><span class="lbl">Where your habits are saved</span><p class="hint">${S.mode === 'cloud' ? 'In your claude.ai account. Only you can see your habits and times, and they follow you to any device where you open this page.' : 'In this browser only, on this device. Nobody else can see them. Clearing this site’s data removes them.'}</p></div>
+      <div class="field"><span class="lbl">Backup</span><p class="hint">Download a backup file to keep your habits safe, or to move them to another browser or device.</p>
+        <div class="head-actions"><button type="button" class="btn sm" data-act="backup-export">Download backup</button><button type="button" class="btn sm" data-act="backup-pick">Restore from backup</button></div>
+        <input type="file" id="backup-file" accept=".json,application/json" hidden>
+        <div id="backup-confirm" hidden></div></div>
     </div>
     <div class="m-foot"><span></span><div class="r"><button class="btn primary" data-act="close-modal">Done</button></div></div>
   </div></div>`;
   document.body.style.overflow = 'hidden';
+}
+
+/* ---------- backup: export / import everything as one JSON file ---------- */
+let RESTORE = null;
+function exportBackup() {
+  const data = {app: 'orbit', version: 1, exportedAt: new Date().toISOString(), plan: S.plan, logs: S.logs};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'orbit-backup-' + dkey(new Date()) + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Backup downloaded.');
+}
+function readBackup(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    let o = null; try { o = JSON.parse(r.result); } catch (e) {}
+    if (!o || o.app !== 'orbit' || !o.plan || typeof o.plan !== 'object') { toast('That file isn’t an Orbit backup.'); return; }
+    RESTORE = o;
+    const n = (o.plan.habits || []).length, when = o.exportedAt ? new Date(o.exportedAt) : null;
+    const box = $('#backup-confirm'); box.hidden = false;
+    box.innerHTML = `<p class="hint"><b>${n} habit${n === 1 ? '' : 's'}</b>${when ? ' from ' + esc(MON[when.getMonth()] + ' ' + when.getDate() + ', ' + when.getFullYear()) : ''}. Restoring replaces everything in this browser.</p>
+      <div class="head-actions"><button type="button" class="btn sm danger solid" data-act="backup-restore">Replace my data</button><button type="button" class="btn sm ghost" data-act="backup-cancel">Cancel</button></div>`;
+  };
+  r.readAsText(file);
+}
+function restoreBackup() {
+  if (!RESTORE) return;
+  S.plan = normalizePlan(clone(RESTORE.plan)); S.logs = clone(RESTORE.logs || {}); RESTORE = null;
+  Store.saveLocal(); S.goalArm = null; if (S.plan.active) armGoal();
+  closeModal(); renderPlanner(); toast('Backup restored.');
 }
 
 /* ---------- celebration graphics ---------- */
@@ -1827,6 +1860,8 @@ function goSlide(i) {
 /* ---------- about: developer log (shared, editors post) ---------- */
 /* Developer log for the GitHub version: add a new entry at the top of this list, then commit. */
 const DEVLOG = [
+  {id: 'v0.3', kind: 'Feature', version: 'v0.3', createdAt: '2026-10-16T12:00:00', title: 'Install Orbit and back up your data',
+   body: 'Orbit can now be added to your home screen and opens even without internet. In Settings you can download a backup of your habits and restore it in another browser or device.'},
   {id: 'v0.2', kind: 'Feature', version: 'v0.2', createdAt: '2026-10-15T12:00:00', title: 'Orbit moves to GitHub Pages',
    body: 'Orbit is now its own website. Your habits and times are saved in your own browser, so they stay private on your device.'},
   {id: 'v0.1', kind: 'Feature', version: 'v0.1', createdAt: '2026-10-02T12:00:00', title: 'First version of Orbit',
@@ -1913,6 +1948,10 @@ document.addEventListener('click', e => {
     case 'adj-q': adjQuick(+el.dataset.v); break;
     case 'adj-save': saveAdjust(); break;
     case 'close-modal': case 'close-back': closeModal(); break;
+    case 'backup-export': exportBackup(); break;
+    case 'backup-pick': $('#backup-file').click(); break;
+    case 'backup-restore': restoreBackup(); break;
+    case 'backup-cancel': RESTORE = null; $('#backup-confirm').hidden = true; break;
     case 'color': ED.h.color = v; renderEditor(); break;
     case 'period': if (ED.h.period !== v) { ED.h.period = v; ED.h.alloc = {days: {}, pattern: {}, months: {}}; ED.ref = new Date(); if (!ED.targetTouched) ED.h.target = DEF_TARGET[v]; if (v === 'daily' && (ED.h.slotsAuto || !ED.h.slots.length)) { ED.h.slots = [{start: '09:00', end: '09:30'}]; autoSlots(ED.h); } renderEditor(); } break;
     case 'effect': ED.h.celebrate.effect = v; renderEditor(); break;
@@ -2018,6 +2057,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'set-vol') { Store.savePlan(); return; }
+  if (t.id === 'backup-file') { if (t.files && t.files[0]) readBackup(t.files[0]); t.value = ''; return; }
   if (t.id === 'su-date' && SU) { if (t.value && t.value <= dkey(new Date())) { SU.k = t.value; renderSettle(); } else t.value = SU.k; return; }
   if (t.id === 'nd-t1' || t.id === 'nd-t2') {
     let a = Math.max(1, Math.round(+$('#nd-t1').value || 24)), b = Math.max(2, Math.round(+$('#nd-t2').value || 48));
@@ -2041,6 +2081,7 @@ initCarousel();
 show(location.hash === '#about' ? 'about' : 'planner');
 setInterval(tick, 1000);
 initStore();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
 
