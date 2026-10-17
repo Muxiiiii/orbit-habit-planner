@@ -1188,7 +1188,7 @@ function emptyHTML() {
   return `<div class="empty">
     <p class="eyebrow">Start here</p><h2>Plan your first habit</h2>
     <p>Add something you want to spend time on, like reading, piano or a side project. Choose how often it repeats and how many hours it deserves. Orbit will split the time across your days.</p>
-    <div class="head-actions"><button class="btn primary" data-act="new-habit" data-fk="new">${ICON.plus} New habit</button><button class="btn" data-act="examples" data-fk="ex">Add 4 example habits</button></div>
+    <div class="head-actions"><button class="btn primary" data-act="new-habit" data-fk="new">${ICON.plus} New habit</button></div>
   </div>`;
 }
 function cardHTML(h, now) {
@@ -1613,19 +1613,6 @@ function deleteHabit() {
   S.plan.habits = S.plan.habits.filter(x => x.id !== id);
   closeModal(); Store.savePlan(); renderPlanner(); toast('Deleted ' + name + '.');
 }
-function addExamples() {
-  const base = newHabit;
-  const mk = (o) => Object.assign(base(), o);
-  const ex = [
-    mk({name: 'Reading', color: COLORS[0], period: 'weekly', target: 300, celebrate: {on: true, effect: 'moon', sound: 'bell'}}),
-    mk({name: 'Spanish practice', color: COLORS[2], period: 'daily', target: 30, slots: [{start: '07:30', end: '07:45'}, {start: '21:00', end: '21:15'}], slotsAuto: false, onGoal: 'stop', celebrate: {on: true, effect: 'sun', sound: 'chime'}}),
-    mk({name: 'Side project', color: COLORS[1], period: 'monthly', target: 1200, celebrate: {on: true, effect: 'rocket', sound: 'launch'}}),
-    mk({name: 'Running', color: COLORS[3], period: 'yearly', target: 6000, celebrate: {on: true, effect: 'stars', sound: 'sparkle'}})
-  ];
-  ex.forEach((h, i) => { h.id = h.id + i; });
-  ex[0].alloc.pattern = {5: 60, 6: 60};
-  S.plan.habits.push(...ex); Store.savePlan(); renderPlanner(); toast('Added 4 example habits. Edit or delete them any time.');
-}
 
 /* ---------- settings ---------- */
 function openSettings() {
@@ -1938,7 +1925,6 @@ document.addEventListener('click', e => {
     case 'jump-log': $('#devlog').scrollIntoView({behavior: 'smooth'}); break;
     case 'settings': openSettings(); break;
     case 'new-habit': openEditor(null); break;
-    case 'examples': addExamples(); break;
     case 'edit': openEditor(id); break;
     case 'start': startTimer(id); break;
     case 'stop': stopTimer(); break;
