@@ -13,4 +13,4 @@ Link to the web version: https://muxiiiii.github.io/orbit-habit-planner/
 Your habits are saved only in your own browser. Use **Settings → Backup** to download a backup file, and **Restore from backup** to move your habits to another browser or device.
 
 ## Made by
-Muxi ([@Muxiiiii](https://github.com/Muxiiiii)), with help from Claude (C老师).
+Muxi ([@Muxiiiii](https://github.com/Muxiiiii)), with help from Claude, my coding mentor.
