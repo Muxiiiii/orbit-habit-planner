@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Orbit Habit Planner</title><meta name="description" content="Orbit: a habit planner built around time."><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='16' rx='14' ry='6.5' fill='none' stroke='%2358617F' stroke-width='1.6' transform='rotate(-24 16 16)'/%3E%3Ccircle cx='16' cy='16' r='6.5' fill='%232F45E0'/%3E%3Ccircle cx='27.2' cy='10.6' r='2.6' fill='%23B8740F'/%3E%3C/svg%3E"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Orbit Habit Planner</title><meta name="description" content="Orbit: a habit planner built around time."><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#2F45E0"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Orbit"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='16' rx='14' ry='6.5' fill='none' stroke='%2358617F' stroke-width='1.6' transform='rotate(-24 16 16)'/%3E%3Ccircle cx='16' cy='16' r='6.5' fill='%232F45E0'/%3E%3Ccircle cx='27.2' cy='10.6' r='2.6' fill='%23B8740F'/%3E%3C/svg%3E"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
@@ -1188,7 +1188,7 @@ function emptyHTML() {
   return `<div class="empty">
     <p class="eyebrow">Start here</p><h2>Plan your first habit</h2>
     <p>Add something you want to spend time on, like reading, piano or a side project. Choose how often it repeats and how many hours it deserves. Orbit will split the time across your days.</p>
-    <div class="head-actions"><button class="btn primary" data-act="new-habit" data-fk="new">${ICON.plus} New habit</button><button class="btn" data-act="examples" data-fk="ex">Add 4 example habits</button></div>
+    <div class="head-actions"><button class="btn primary" data-act="new-habit" data-fk="new">${ICON.plus} New habit</button></div>
   </div>`;
 }
 function cardHTML(h, now) {
@@ -1613,19 +1613,6 @@ function deleteHabit() {
   S.plan.habits = S.plan.habits.filter(x => x.id !== id);
   closeModal(); Store.savePlan(); renderPlanner(); toast('Deleted ' + name + '.');
 }
-function addExamples() {
-  const base = newHabit;
-  const mk = (o) => Object.assign(base(), o);
-  const ex = [
-    mk({name: 'Reading', color: COLORS[0], period: 'weekly', target: 300, celebrate: {on: true, effect: 'moon', sound: 'bell'}}),
-    mk({name: 'Spanish practice', color: COLORS[2], period: 'daily', target: 30, slots: [{start: '07:30', end: '07:45'}, {start: '21:00', end: '21:15'}], slotsAuto: false, onGoal: 'stop', celebrate: {on: true, effect: 'sun', sound: 'chime'}}),
-    mk({name: 'Side project', color: COLORS[1], period: 'monthly', target: 1200, celebrate: {on: true, effect: 'rocket', sound: 'launch'}}),
-    mk({name: 'Running', color: COLORS[3], period: 'yearly', target: 6000, celebrate: {on: true, effect: 'stars', sound: 'sparkle'}})
-  ];
-  ex.forEach((h, i) => { h.id = h.id + i; });
-  ex[0].alloc.pattern = {5: 60, 6: 60};
-  S.plan.habits.push(...ex); Store.savePlan(); renderPlanner(); toast('Added 4 example habits. Edit or delete them any time.');
-}
 
 /* ---------- settings ---------- */
 function openSettings() {
@@ -1638,10 +1625,43 @@ function openSettings() {
       <div class="field"><span class="lbl">Try a celebration</span><div class="effects">${EFFECTS.map(e => `<button type="button" class="effect" data-act="try-effect" data-v="${e.id}">${effectThumb(e.id)}<span>${e.name}</span></button>`).join('')}</div>
         <p class="hint">Each habit picks its own effect and sound in its edit screen.</p></div>
       <div class="field"><span class="lbl">Where your habits are saved</span><p class="hint">${S.mode === 'cloud' ? 'In your claude.ai account. Only you can see your habits and times, and they follow you to any device where you open this page.' : 'In this browser only, on this device. Nobody else can see them. Clearing this site’s data removes them.'}</p></div>
+      <div class="field"><span class="lbl">Backup</span><p class="hint">Download a backup file to keep your habits safe, or to move them to another browser or device.</p>
+        <div class="head-actions"><button type="button" class="btn sm" data-act="backup-export">Download backup</button><button type="button" class="btn sm" data-act="backup-pick">Restore from backup</button></div>
+        <input type="file" id="backup-file" accept=".json,application/json" hidden>
+        <div id="backup-confirm" hidden></div></div>
     </div>
     <div class="m-foot"><span></span><div class="r"><button class="btn primary" data-act="close-modal">Done</button></div></div>
   </div></div>`;
   document.body.style.overflow = 'hidden';
+}
+
+/* ---------- backup: export / import everything as one JSON file ---------- */
+let RESTORE = null;
+function exportBackup() {
+  const data = {app: 'orbit', version: 1, exportedAt: new Date().toISOString(), plan: S.plan, logs: S.logs};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'orbit-backup-' + dkey(new Date()) + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Backup downloaded.');
+}
+function readBackup(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    let o = null; try { o = JSON.parse(r.result); } catch (e) {}
+    if (!o || o.app !== 'orbit' || !o.plan || typeof o.plan !== 'object') { toast('That file isn’t an Orbit backup.'); return; }
+    RESTORE = o;
+    const n = (o.plan.habits || []).length, when = o.exportedAt ? new Date(o.exportedAt) : null;
+    const box = $('#backup-confirm'); box.hidden = false;
+    box.innerHTML = `<p class="hint"><b>${n} habit${n === 1 ? '' : 's'}</b>${when ? ' from ' + esc(MON[when.getMonth()] + ' ' + when.getDate() + ', ' + when.getFullYear()) : ''}. Restoring replaces everything in this browser.</p>
+      <div class="head-actions"><button type="button" class="btn sm danger solid" data-act="backup-restore">Replace my data</button><button type="button" class="btn sm ghost" data-act="backup-cancel">Cancel</button></div>`;
+  };
+  r.readAsText(file);
+}
+function restoreBackup() {
+  if (!RESTORE) return;
+  S.plan = normalizePlan(clone(RESTORE.plan)); S.logs = clone(RESTORE.logs || {}); RESTORE = null;
+  Store.saveLocal(); S.goalArm = null; if (S.plan.active) armGoal();
+  closeModal(); renderPlanner(); toast('Backup restored.');
 }
 
 /* ---------- celebration graphics ---------- */
@@ -1827,10 +1847,14 @@ function goSlide(i) {
 /* ---------- about: developer log (shared, editors post) ---------- */
 /* Developer log for the GitHub version: add a new entry at the top of this list, then commit. */
 const DEVLOG = [
-  {id: 'v0.2', kind: 'Feature', version: 'v0.2', createdAt: '2026-10-15T12:00:00', title: 'Orbit moves to GitHub Pages',
-   body: 'Orbit is now its own website. Your habits and times are saved in your own browser, so they stay private on your device.'},
-  {id: 'v0.1', kind: 'Feature', version: 'v0.1', createdAt: '2026-10-02T12:00:00', title: 'First version of Orbit',
-   body: 'Daily, weekly, monthly and yearly time goals, automatic splitting across days, a timer with time slots, carry-over of extra time, and celebrations when you reach a goal.'}
+  {"id": "v0-8-install-backup", "kind": "Feature", "version": "v0.8", "createdAt": "2026-10-17T16:00:00.000Z", "title": "Install Orbit and back up your data", "body": "• Add Orbit to your home screen and it opens like an app, even without internet.\n• Settings → Backup: download a backup file of your habits and times, and restore it in another browser or device.\n• The empty planner now starts with just New habit."},
+  {"id": "v0-7-github-pages", "kind": "Feature", "version": "v0.7", "createdAt": "2026-10-15T16:00:00.000Z", "title": "Orbit moves to GitHub Pages", "body": "Orbit is now its own website at muxiiiii.github.io/orbit-habit-planner. Your habits and times are saved in your own browser, so they stay private on your device."},
+  {"id": "v0-6-pause-adjust", "kind": "Improvement", "version": "v0.6", "createdAt": "2026-10-08T20:00:00.000Z", "title": "Exact times, Pause and Adjust", "body": "Fix: done time was rounded to the nearest minute, so 9:54 showed as 10m. Times you've done now display exactly (for example 9m 54s), and the timer saves to a tenth of a second.\n\nNew: Pause. Pause saves everything up to that moment and keeps the session open. Resume continues the same session clock, and Finish ends it. This works for catch-up sessions too.\n\nNew: Adjust. The Adjust link next to a habit's time opens a breakdown (timer, added by hand, adjustments, saved total). You can set the exact total in h/m/s or nudge it by ±1, 5 or 10 minutes. Timer history stays untouched: the difference is saved as an adjustment that you can remove later from Settle up."},
+  {"id": "v0-5-nudge-mode", "kind": "Feature", "version": "v0.5", "createdAt": "2026-10-08T16:00:00.000Z", "title": "Nudge mode for days when starting is hard", "body": "A new Nudge mode button sits next to the Orbit logo. Turn it on and the planner gains:\n• Total time put off: every unfinished minute from past days (last 60 days), with a meter and two thresholds you can set. The defaults are 24h for \"It's piling up\" and 48h for \"Wow, you've got lots of work to do\".\n• Backlog by habit, oldest day first. For each day you can Catch up (a timer that counts for that past day), Settle up (log time you spent offline), or Let it go (remove the day from the backlog; you can bring it back).\n• Floating reminders in 9 languages that drift across the screen and mention your real habits and the time left today.\n• Stress level: Gentle (rare, kind messages only), Balanced, or Push me (frequent, firmer). Reminders can be turned off any time.\nThe setting is remembered, so Nudge mode stays on until you switch it off."},
+  {"id": "v0-4-settle-up", "kind": "Feature", "version": "v0.4", "createdAt": "2026-10-06T20:00:00.000Z", "title": "Start dates and Settle up", "body": "Fix: habits no longer appear on days before they were created, so past days don't show a habit as Missed before it existed.\n• Each habit has a \"Starts on\" date, editable in the habit's Edit screen.\n• If a weekly, monthly or yearly habit starts partway through a period, that period's goal is prorated to the days left.\n\nNew: Settle up. Forgot the timer, or did something away from the computer? Press Settle up on a habit or for the whole day and add the time. You can tap \"Did it as planned\" or a quick amount, and optionally add the time, place and a note. Settled time counts like timer time, including toward the Extra time bank, and can be removed.\n\nTone: past-day labels are now gentler. \"Partly logged\" and \"Not logged\" replace \"Partly done\" and \"Missed\"."},
+  {"id": "v0-3-day-navigation", "kind": "Feature", "version": "v0.3", "createdAt": "2026-10-06T18:00:00.000Z", "title": "Look back and plan ahead", "body": "You can now view any day, not just today.\n• Use the ‹ › arrows in the top bar to step back or forward one day at a time.\n• Tap the calendar button to jump to any date. A green dot means every goal was met that day, and a gold dot means some time was logged.\n• Past days show what you planned and what you logged, marked Done, Partly done or Missed. Future days show their planned goals, including any extra time already applied.\n• Tap a column in the weekly chart to open that day.\n• Back to today returns to the live view. The timer keeps running while you browse."},
+  {"id": "v0-2-extra-time-bank", "kind": "Feature", "version": "v0.2", "createdAt": "2026-10-06T16:00:00.000Z", "title": "Extra time bank", "body": "Time beyond a day's goal is now saved in an Extra time bank in the right column, grouped by habit.\n• Orbit suggests where to use it: the next day first. If that day is already done or fully covered, the rest goes to the day after, and so on.\n• Nothing changes until you press Apply.\n• Choose days: assign the minutes to any of the next 14 days yourself.\n• Keep as bonus: leave the time in your totals without lightening any day.\n• Every action can be undone from \"Recently used\".\nThis replaces the old automatic \"extra time lightens the days ahead\" option."},
+  {"id": "v0-1-first-release", "kind": "Feature", "version": "v0.1", "createdAt": "2026-10-02T16:00:00.000Z", "title": "First release of Orbit", "body": "What's in this release:\n• Add as many habits as you want: daily, weekly, monthly or yearly, each with a total time goal.\n• Automatic split: weekly goals spread across the days, monthly across the calendar, yearly across the months. Change any day, mark rest days, or set time slots for daily habits.\n• Timer with Start/Stop, which keeps running across tabs and reloads.\n• Per-habit celebrations (rocket launch, moonrise, sunrise, star scatter, fireworks) with 5 synthesized sounds, or switched off.\n• Choose to stop at the goal or keep counting. Extra time lightens the rest of the period, and missed time can optionally be added to the days ahead.\n\nNext up: weekly review, streaks, and a history view."}
 ];
 const DL = {db: null, user: null, canEdit: false, uid: null, items: [], loaded: false, err: false, editing: null, confirm: null, ps: {}};
 async function initDevlog(db, user) {
@@ -1903,7 +1927,6 @@ document.addEventListener('click', e => {
     case 'jump-log': $('#devlog').scrollIntoView({behavior: 'smooth'}); break;
     case 'settings': openSettings(); break;
     case 'new-habit': openEditor(null); break;
-    case 'examples': addExamples(); break;
     case 'edit': openEditor(id); break;
     case 'start': startTimer(id); break;
     case 'stop': stopTimer(); break;
@@ -1913,6 +1936,10 @@ document.addEventListener('click', e => {
     case 'adj-q': adjQuick(+el.dataset.v); break;
     case 'adj-save': saveAdjust(); break;
     case 'close-modal': case 'close-back': closeModal(); break;
+    case 'backup-export': exportBackup(); break;
+    case 'backup-pick': $('#backup-file').click(); break;
+    case 'backup-restore': restoreBackup(); break;
+    case 'backup-cancel': RESTORE = null; $('#backup-confirm').hidden = true; break;
     case 'color': ED.h.color = v; renderEditor(); break;
     case 'period': if (ED.h.period !== v) { ED.h.period = v; ED.h.alloc = {days: {}, pattern: {}, months: {}}; ED.ref = new Date(); if (!ED.targetTouched) ED.h.target = DEF_TARGET[v]; if (v === 'daily' && (ED.h.slotsAuto || !ED.h.slots.length)) { ED.h.slots = [{start: '09:00', end: '09:30'}]; autoSlots(ED.h); } renderEditor(); } break;
     case 'effect': ED.h.celebrate.effect = v; renderEditor(); break;
@@ -2018,6 +2045,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'set-vol') { Store.savePlan(); return; }
+  if (t.id === 'backup-file') { if (t.files && t.files[0]) readBackup(t.files[0]); t.value = ''; return; }
   if (t.id === 'su-date' && SU) { if (t.value && t.value <= dkey(new Date())) { SU.k = t.value; renderSettle(); } else t.value = SU.k; return; }
   if (t.id === 'nd-t1' || t.id === 'nd-t2') {
     let a = Math.max(1, Math.round(+$('#nd-t1').value || 24)), b = Math.max(2, Math.round(+$('#nd-t2').value || 48));
@@ -2041,6 +2069,7 @@ initCarousel();
 show(location.hash === '#about' ? 'about' : 'planner');
 setInterval(tick, 1000);
 initStore();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
 
