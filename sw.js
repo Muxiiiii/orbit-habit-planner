@@ -1,6 +1,6 @@
 /* Orbit service worker: lets the app open offline.
    Pages load from the network first (so updates show up right away) and fall back to the cache when offline. */
-const CACHE = 'orbit-v1';
+const CACHE = 'orbit-v2';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
