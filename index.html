@@ -80,7 +80,9 @@ button{font:inherit;color:inherit}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start;padding-bottom:56px}
 @media (max-width:920px){.layout{grid-template-columns:minmax(0,1fr)}}
 .aside{display:grid;gap:16px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 80px)}
+@media (min-width:921px){.aside{max-height:calc(100vh - env(safe-area-inset-top,0px) - 96px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;border-radius:var(--r-lg)}}
 @media (max-width:920px){.aside{position:static;order:-1}}
+@media (max-width:920px){#inbox-panel{order:5}}
 .list{display:grid;gap:14px;min-width:0}
 
 /* habit card */
@@ -152,6 +154,29 @@ button{font:inherit;color:inherit}
 .wk-chart .b .dn{position:absolute;left:22%;right:22%;bottom:0;background:var(--accent);border-radius:4px 4px 0 0}
 .wk-chart .c.today{color:var(--ink);font-weight:700}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.streak{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--gold);white-space:nowrap}
+.mini-box{background:color-mix(in srgb,var(--gold) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--gold) 40%,var(--line));border-radius:12px;padding:12px 14px;display:grid;gap:8px}
+.mini-box b{font-size:15px}
+.inbox-form{display:flex;gap:8px}
+.inbox-form input{flex:1}
+.inbox-list{list-style:none;margin:0;padding:0;display:grid;gap:2px;max-height:320px;overflow-y:auto}
+.inbox-list li{display:flex;align-items:flex-start;gap:9px;padding:6px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.inbox-list li:last-child{border-bottom:0}
+.inbox-list input[type=checkbox]{width:17px;height:17px;margin-top:2px;flex:none;accent-color:var(--accent)}
+.inbox-list .tx{flex:1;min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.inbox-list li.done .tx{text-decoration:line-through;color:var(--muted)}
+.inbox-list .icon-btn{width:26px;height:26px;font-size:16px;flex:none}
+.rv-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.rv-grid .stat{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:3px}
+.rv-grid .stat b{font-family:var(--f-mono);font-size:20px}
+.rv-grid .stat span{font-size:12px;color:var(--muted)}
+.rv-rows{display:grid;gap:12px}
+.rv-row{display:grid;gap:6px}
+.rv-row .top{display:flex;justify-content:space-between;gap:10px;font-size:14px;flex-wrap:wrap}
+.rv-row .top b{display:inline-flex;align-items:center;gap:8px}
+.rv-row .bar i{background:var(--hc)}
+.up{color:var(--good,#1F9470);font-weight:600}.down{color:var(--warn);font-weight:600}
+@media (max-width:560px){.rv-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 
 /* date navigation */
@@ -683,6 +708,9 @@ function normalizePlan(p) {
   p.settings = Object.assign({volume: 70, sound: true}, p.settings || {});
   p.settings.nudge = Object.assign({}, NUDGE_DEF, p.settings.nudge || {});
   p.forgiven = p.forgiven && typeof p.forgiven === 'object' ? p.forgiven : {};
+  p.settings.remind = Object.assign({on: false, lead: 0}, p.settings.remind || {});
+  p.inbox = Array.isArray(p.inbox) ? p.inbox.filter(x => x && typeof x.text === 'string') : [];
+  p.reviews = p.reviews && typeof p.reviews === 'object' ? p.reviews : {};
   p.habits.forEach(h => {
     h.alloc = h.alloc || {}; h.alloc.days = h.alloc.days || {}; h.alloc.pattern = h.alloc.pattern || {}; h.alloc.months = h.alloc.months || {};
     h.slots = Array.isArray(h.slots) ? h.slots : [];
@@ -711,6 +739,23 @@ function openLinks(h) {
   return blocked;
 }
 const MEMO_OPEN = new Set();
+
+/* ---------- streaks: days in a row where the day's goal was met. Rest days and days covered by extra time don't break it. ---------- */
+let STREAKS = new Map();
+function streakOf(h, now = new Date()) {
+  const tk = dkey(now); let c = STREAKS.get(h.id);
+  if (!c || c.tk !== tk) {
+    let n = 0;
+    for (let i = 1; i <= 366; i++) {
+      const k = dkey(addDays(sod(now), -i)); if (!activeOn(h, k)) break;
+      const g = dayGoal(h, k, now); if (g <= 0) continue;
+      if (doneSec(h.id, k, now) / 60 >= g - 0.01) n++; else break;
+    }
+    c = {tk, past: n}; STREAKS.set(h.id, c);
+  }
+  const g = dayGoal(h, tk, now), today = g > 0 && doneSec(h.id, tk, now) / 60 >= g - 0.01;
+  return c.past + (today ? 1 : 0);
+}
 
 /* ---------- storage: claude db (private per person) with browser fallback ---------- */
 const LS_KEY = 'orbit-planner-v1';
@@ -1092,6 +1137,7 @@ function pauseTimer() {
   const sess = (a.sessionSec || 0) + (Date.now() - new Date(a.startedAt)) / 1000;
   logSegment(a);
   S.plan.paused = {habitId: a.habitId, forDay: a.forDay || null, sessionSec: Math.round(sess * 10) / 10, at: new Date().toISOString()};
+  if (a.mini) { S.plan.paused.mini = true; S.plan.paused.miniDone = !!a.miniDone; }
   S.plan.active = null; S.goalArm = null; Store.savePlan();
   document.title = 'Paused · ' + (habit(a.habitId) || {}).name;
   renderPlanner(); focusKey('resume-panel');
@@ -1101,6 +1147,7 @@ function resumeTimer() {
   if (S.plan.active) stopTimer(false);
   S.plan.active = {habitId: pz.habitId, startedAt: new Date().toISOString(), sessionSec: pz.sessionSec || 0};
   if (pz.forDay) S.plan.active.forDay = pz.forDay;
+  if (pz.mini) { S.plan.active.mini = true; S.plan.active.miniDone = !!pz.miniDone; }
   S.plan.paused = null; armGoal(); Store.savePlan(); renderPlanner(); focusKey('pause-panel');
 }
 function stopTimer(render = true) {
@@ -1155,13 +1202,148 @@ function tick() {
         const st = stats(h, now);
         if (S.goalArm && S.goalArm.below && st.goal > 0 && st.today >= st.goal) { S.goalArm.below = false; onGoalReached(h, st); }
       }
+      const A = S.plan.active;
+      if (A && A.mini && !A.miniDone && (A.sessionSec || 0) + (now - new Date(A.startedAt)) / 1000 >= MINI_SEC) {
+        A.miniDone = true; Store.savePlan(); Snd.play('chime');
+        if (document.hidden) notify('5 minutes done', h.name + ': nice start! Keep going, or stop here.', 'mini-' + h.id);
+      }
       if (S.plan.active) {
         updateActive(h);
         document.title = fmtClock((now - new Date(S.plan.active.startedAt)) / 1000) + ' · ' + h.name;
       }
     }
   }
-  if (now.getSeconds() === 0 && !S.plan.active && S.loaded && !$('#view-planner').hidden) renderPlanner();
+  if (S.loaded && now.getSeconds() % 15 === 0) { try { checkReminders(now); } catch (e) {} }
+  if (now.getSeconds() === 0 && !S.plan.active && S.loaded && !$('#view-planner').hidden && !(document.activeElement && document.activeElement.id === 'inbox-in')) renderPlanner();
+}
+
+/* ---------- reminders: a notification when a daily time slot starts (works while Orbit is open, even in the background) ---------- */
+const MINI_SEC = 300;
+const REMIND_SENT = new Set();
+const canNotify = () => 'Notification' in window;
+function notify(title, body, tag) {
+  if (!canNotify() || Notification.permission !== 'granted') return;
+  const opts = {body, tag, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png'};
+  const plain = () => { try { const n = new Notification(title, opts); n.onclick = () => { window.focus(); n.close(); }; } catch (e) {} };
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(title, opts) : plain()).catch(plain);
+  else plain();
+}
+function checkReminders(now) {
+  const R = S.plan.settings.remind; if (!R || !R.on) return;
+  const tk = dkey(now), nm = now.getHours() * 60 + now.getMinutes(), lead = +R.lead || 0;
+  S.plan.habits.forEach(h => {
+    if (h.period !== 'daily' || !activeOn(h, tk)) return;
+    h.slots.forEach((sl, i) => {
+      const at = tmin(sl.start) - lead, key = tk + '|' + h.id + '|' + i + '|' + sl.start;
+      if (nm < at || nm >= at + 2 || REMIND_SENT.has(key)) return;
+      REMIND_SENT.add(key);
+      if (S.plan.active && S.plan.active.habitId === h.id) return;
+      const g = dayGoal(h, tk, now); if (g > 0 && doneSec(h.id, tk, now) / 60 >= g) return;
+      const when = lead ? 'starts in ' + lead + ' min' : 'starts now';
+      notify(h.name + ' ' + when, sl.start + '–' + sl.end + (h.memo && h.memo.trim() ? ' · ' + h.memo.trim().split('\n')[0].slice(0, 80) : ' · Tap to open Orbit'), 'slot-' + h.id + '-' + i);
+      if (!document.hidden) { toast(h.name + ' ' + when + ' (' + sl.start + ').'); Snd.play('bell'); }
+    });
+  });
+}
+async function setReminders(on) {
+  const R = S.plan.settings.remind;
+  if (on) {
+    if (!canNotify()) { toast('This browser can’t show notifications. Try “Add slots to my calendar” instead.'); renderRemindBox(); return; }
+    let perm = Notification.permission;
+    if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) {} }
+    if (perm !== 'granted') { R.on = false; Store.savePlan(); toast('Notifications are blocked. Allow them for this site in your browser settings.'); renderRemindBox(); return; }
+    R.on = true; Store.savePlan(); renderRemindBox(); notify('Reminders are on', 'Orbit will remind you when a time slot starts.', 'remind-test');
+  } else { R.on = false; Store.savePlan(); renderRemindBox(); }
+}
+function remindBoxHTML() {
+  const R = S.plan.settings.remind, perm = canNotify() ? Notification.permission : 'unsupported';
+  const n = S.plan.habits.filter(h => h.period === 'daily').reduce((s, h) => s + h.slots.length, 0);
+  return `<label class="switch"><input type="checkbox" id="set-remind" ${R.on && perm === 'granted' ? 'checked' : ''}><span class="tr"></span><span>Remind me when a time slot starts</span></label>
+    <div class="snd-row"><label class="lbl" for="set-lead">When</label><select id="set-lead" style="max-width:200px">${[[0, 'At the start'], [5, '5 minutes before'], [10, '10 minutes before']].map(([v, t]) => `<option value="${v}" ${+R.lead === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <p class="hint">${n ? `You have ${n} time slot${n === 1 ? '' : 's'} on daily habits.` : 'Reminders use the time slots of daily habits. You don’t have any yet.'} Reminders arrive while Orbit is open, even in a background tab. On iPhone, add Orbit to your Home Screen first.${perm === 'denied' ? ' <b>Notifications are blocked for this site.</b> Allow them in your browser settings.' : ''}</p>
+    <p class="hint">Want reminders even when Orbit is closed? Add your slots to your phone’s calendar, with an alert for each one.</p>
+    <div class="head-actions"><button type="button" class="btn sm" data-act="ics" ${n ? '' : 'disabled'}>Add slots to my calendar</button></div>`;
+}
+function renderRemindBox() { const b = $('#remind-box'); if (b) b.innerHTML = remindBoxHTML(); }
+function icsText(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+function exportICS() {
+  const lead = +S.plan.settings.remind.lead || 0, today = dkey(new Date()), stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Orbit Habit Planner//EN', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Orbit'];
+  let n = 0;
+  S.plan.habits.filter(h => h.period === 'daily').forEach(h => h.slots.forEach((sl, i) => {
+    const day = (h.start && h.start > today ? h.start : today).replace(/-/g, '');
+    const desc = [h.memo && h.memo.trim(), ...(h.links || []).map(l => linkLabel(l) + ': ' + l.url), 'Open Orbit: ' + location.href.split('#')[0]].filter(Boolean).join('\n');
+    L.push('BEGIN:VEVENT', 'UID:orbit-' + h.id + '-' + i + '@orbit-habit-planner', 'DTSTAMP:' + stamp,
+      'DTSTART:' + day + 'T' + sl.start.replace(':', '') + '00', 'DTEND:' + day + 'T' + sl.end.replace(':', '') + '00', 'RRULE:FREQ=DAILY',
+      'SUMMARY:' + icsText(h.name), 'DESCRIPTION:' + icsText(desc),
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText(h.name), 'TRIGGER:-PT' + lead + 'M', 'END:VALARM', 'END:VEVENT');
+    n++;
+  }));
+  L.push('END:VCALENDAR');
+  if (!n) { toast('Add time slots to a daily habit first.'); return; }
+  const url = URL.createObjectURL(new Blob([L.join('\r\n') + '\r\n'], {type: 'text/calendar'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'orbit-slots.ics';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Calendar file downloaded. Open it to add ' + n + ' repeating event' + (n === 1 ? '' : 's') + '.');
+}
+
+/* ---------- inbox: quick notes that don't belong to a habit yet ---------- */
+let INBOX_DRAFT = '';
+function inboxHTML() {
+  const L = S.plan.inbox, done = L.filter(x => x.done).length;
+  return `<div class="sec-head"><h3>Inbox</h3>${done ? `<button class="linkbtn" data-act="inbox-clear" data-fk="inbox-clear">Clear ${done} done</button>` : ''}</div>
+    <form class="inbox-form" id="inbox-form"><input type="text" id="inbox-in" data-fk="inbox-in" maxlength="300" placeholder="Jot down a thought or to-do…" value="${esc(INBOX_DRAFT)}" autocomplete="off" aria-label="New inbox note"><button class="btn sm" type="submit" aria-label="Add to inbox">${ICON.plus}</button></form>
+    ${L.length ? `<ul class="inbox-list">${L.map(x => `<li class="${x.done ? 'done' : ''}"><input type="checkbox" data-inbox="${x.id}" ${x.done ? 'checked' : ''} aria-label="Done: ${esc(x.text)}"><span class="tx">${esc(x.text)}</span><button class="icon-btn" data-act="inbox-del" data-id="${x.id}" aria-label="Delete">×</button></li>`).join('')}</ul>` : '<p class="hint">Get it out of your head. Sort it out later.</p>'}`;
+}
+function renderInbox(focusInput) { const b = $('#inbox-panel'); if (b) b.innerHTML = inboxHTML(); if (focusInput) { const i = $('#inbox-in'); if (i) i.focus(); } }
+function addInbox() {
+  const t = INBOX_DRAFT.trim(); if (!t) return;
+  S.plan.inbox.unshift({id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: t, at: new Date().toISOString(), done: false});
+  if (S.plan.inbox.length > 300) S.plan.inbox.length = 300;
+  INBOX_DRAFT = ''; Store.savePlan(); renderInbox(true);
+}
+
+/* ---------- weekly review ---------- */
+let RV = null;
+function weekData(ws, now) {
+  const b = bounds('weekly', ws), tk = dkey(now);
+  const rows = S.plan.habits.filter(h => b.days.some(d => activeOn(h, dkey(d)))).map(h => {
+    let pl = 0, dn = 0, met = 0, goals = 0;
+    b.days.forEach(d => { const k = dkey(d); if (!activeOn(h, k) || k > tk) return; const g = dayGoal(h, k, now), x = doneSec(h.id, k, now) / 60; pl += g; dn += x; if (g > 0) { goals++; if (x >= g - 0.01) met++; } });
+    return {h, pl, dn, met, goals};
+  });
+  const days = b.days.map(d => { const k = dkey(d); return {d, k, dn: S.plan.habits.reduce((s, h) => s + (activeOn(h, k) ? doneSec(h.id, k, now) / 60 : 0), 0)}; });
+  return {b, rows, days, pl: rows.reduce((s, r) => s + r.pl, 0), dn: rows.reduce((s, r) => s + r.dn, 0), met: rows.reduce((s, r) => s + r.met, 0), goals: rows.reduce((s, r) => s + r.goals, 0)};
+}
+function openReview(ws) {
+  const now = new Date();
+  if (!ws) { const cur = bounds('weekly', now).s; ws = dowIdx(now) === 0 ? addDays(cur, -7) : cur; }
+  RV = {ws: sod(ws)}; renderReview();
+}
+function renderReview() {
+  const now = new Date(), W = weekData(RV.ws, now), P = weekData(addDays(RV.ws, -7), now), wk = dkey(W.b.s);
+  const thisWeek = wk === dkey(bounds('weekly', now).s), canNext = !thisWeek;
+  const best = W.days.reduce((m, x) => x.dn > m.dn ? x : m, {dn: 0});
+  const diff = P.dn >= 1 ? Math.round((W.dn - P.dn) / P.dn * 100) : null;
+  const rev = S.plan.reviews[wk] || {};
+  const sorted = W.rows.slice().sort((a, b) => (b.pl ? b.dn / b.pl : 0) - (a.pl ? a.dn / a.pl : 0));
+  $('#modal-root').innerHTML = `<div class="modal-back" data-act="close-back"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="rv-title" style="width:min(600px,100%)">
+    <div class="m-head"><div><p class="eyebrow">Week review</p><h2 id="rv-title">${thisWeek ? 'This week' : 'Week of ' + fmtRange(W.b.s, W.b.e)}</h2></div>
+      <div class="nav-row"><button class="icon-btn" data-act="rv-step" data-v="-1" aria-label="Previous week">‹</button><button class="icon-btn" data-act="rv-step" data-v="1" aria-label="Next week" ${canNext ? '' : 'disabled'}>›</button><button class="icon-btn" data-act="close-modal" aria-label="Close">×</button></div></div>
+    <div class="m-body">
+      <div class="rv-grid">
+        <div class="stat"><b>${fmtMin(W.dn)}</b><span>done of ${fmtMin(W.pl)} planned${thisWeek ? ' so far' : ''}</span></div>
+        <div class="stat"><b>${W.met}/${W.goals}</b><span>daily goals met</span></div>
+        <div class="stat"><b>${diff == null ? '–' : (diff >= 0 ? '+' : '') + diff + '%'}</b><span>${diff == null ? 'no time the week before' : 'vs. the week before'}</span></div>
+      </div>
+      ${W.rows.length ? `<div class="rv-rows">${sorted.map(r => `<div class="rv-row" style="--hc:${esc(r.h.color)}"><div class="top"><b><span class="h-dot"></span>${esc(r.h.name)}</b><span class="muted">${fmtExact(r.dn)} of ${fmtMin(r.pl)} · ${r.met}/${r.goals} days${streakOf(r.h, now) >= 2 && thisWeek ? ` · <span class="streak">🔥 ${streakOf(r.h, now)}</span>` : ''}</span></div><div class="bar thin"><i style="width:${r.pl > 0 ? clamp(r.dn / r.pl * 100, 0, 100) : (r.dn > 0 ? 100 : 0)}%"></i></div></div>`).join('')}</div>` : '<p class="hint">No habits were active this week.</p>'}
+      ${best.dn >= 1 ? `<p style="font-size:14px">Your strongest day: <b>${WEEKDAY[best.d.getDay()]}</b>, with ${fmtExact(best.dn)}.${sorted.length && sorted[0].pl > 0 ? ` Most on track: <b>${esc(sorted[0].h.name)}</b>.` : ''}</p>` : ''}
+      <div class="field"><label class="lbl" for="rv-good">What went well?</label><textarea id="rv-good" data-rv="good" maxlength="1000" style="min-height:64px">${esc(rev.good || '')}</textarea></div>
+      <div class="field"><label class="lbl" for="rv-next">One thing to try next week</label><textarea id="rv-next" data-rv="next" maxlength="1000" style="min-height:64px" placeholder="e.g. Do Spanish right after lunch, not at night">${esc(rev.next || '')}</textarea></div>
+    </div>
+    <div class="m-foot"><span class="hint">Your notes are saved as you type.</span><div class="r"><button class="btn primary" data-act="close-modal">Done</button></div></div>
+  </div></div>`;
+  document.body.style.overflow = 'hidden';
 }
 
 /* ---------- planner rendering ---------- */
@@ -1176,7 +1358,7 @@ const ICON = {
 };
 function focusKey(k) { if (!k) return false; const el = document.querySelector('[data-fk="' + k + '"]'); if (el) { el.focus({preventScroll: true}); return true; } return false; }
 function renderPlanner() {
-  const v = $('#view-planner');
+  const v = $('#view-planner'); STREAKS = new Map();
   const fk = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
   if (!S.loaded) { v.innerHTML = '<div class="wrap"><div class="loading">Loading your habits…</div></div>'; return; }
   resetCache();
@@ -1197,6 +1379,7 @@ function renderPlanner() {
       </section>
       <aside class="aside">
         <div class="panel" id="timer-panel">${timerHTML(now)}</div>
+        <div class="panel" id="inbox-panel">${inboxHTML()}</div>
         ${hs.length ? `<div class="panel bank" id="bank-panel">${bankHTML(now)}</div><div class="panel" id="week-panel">${weekChartHTML(now)}</div>` : ''}
       </aside>
     </div></div>`;
@@ -1252,13 +1435,13 @@ function cardHTML(h, now) {
   const pausedHere = isToday && S.plan.paused && S.plan.paused.habitId === h.id && !S.plan.paused.forDay;
   const action = running ? `<button class="btn sm" data-act="pause" data-fk="pause-${h.id}">${ICON.pause} Pause</button><button class="startbtn stop" data-act="stop" data-fk="stop-${h.id}">${ICON.stop} Stop</button>`
     : pausedHere ? `<button class="startbtn" data-act="resume" data-fk="resume-${h.id}">${ICON.play} Resume</button>`
-    : isToday ? `<button class="startbtn" data-act="start" data-id="${h.id}" data-fk="start-${h.id}">${ICON.play} Start</button>` : '';
+    : isToday ? `${stt.cls !== 'done' ? `<button class="btn sm" data-act="mini" data-id="${h.id}" data-fk="mini-${h.id}" title="Start the timer with a small goal: just 5 minutes">Just 5 min</button>` : ''}<button class="startbtn" data-act="start" data-id="${h.id}" data-fk="start-${h.id}">${ICON.play} Start</button>` : '';
   const settleBtn = V.when === 'future' ? '' : `<button class="btn sm" data-act="settle" data-id="${h.id}" data-fk="settle-${h.id}" title="Add time you spent without the timer">${ICON.check} Settle up</button>`;
   const ms = manualSec(h.id, V.k) / 60;
   if (Math.abs(ms) >= 1 / 60) note += ms > 0 ? ` · includes ${fmtExact(ms)} added by hand` : ` · adjusted −${fmtExact(-ms)}`;
   return `<article class="habit ${running ? 'running' : ''}" style="--hc:${esc(h.color)}" data-card="${h.id}">
     <div class="h-top"><span class="h-dot"></span>
-      <div class="h-title"><h3 class="h-name">${esc(h.name)}</h3><div class="h-meta">${PLABEL[h.period]} · ${fmtMin(h.target)} per ${PNOUN[h.period]}</div></div>
+      <div class="h-title"><h3 class="h-name">${esc(h.name)}</h3><div class="h-meta">${PLABEL[h.period]} · ${fmtMin(h.target)} per ${PNOUN[h.period]}${(() => { const n = isToday ? streakOf(h, now) : 0; return n >= 2 ? ` · <span class="streak" title="Days in a row you met the goal">🔥 ${n} days in a row</span>` : ''; })()}</div></div>
       <span class="pill ${stt.cls}">${stt.txt}</span>
       <button class="icon-btn" data-act="edit" data-id="${h.id}" data-fk="edit-${h.id}" aria-label="Edit ${esc(h.name)}">${ICON.edit}</button>
     </div>
@@ -1312,12 +1495,16 @@ function timerHTML(now) {
     ${btns}`;
   }
   const st = stats(h, now);
+  const mini = a.mini ? (sess < MINI_SEC
+    ? `<div class="mini-box"><b>Just 5 minutes</b><span class="muted" style="font-size:13px">${fmtClock(MINI_SEC - sess)} to go. That’s all you promised.</span></div>`
+    : `<div class="mini-box" role="status"><b>5 minutes done 🎉</b><span style="font-size:13px">Starting was the hard part. Keep going while you’re in the flow?</span><div class="h-acts"><button class="btn sm primary" data-act="mini-keep" data-fk="mini-keep">Keep going</button><button class="btn sm" data-act="stop" data-fk="mini-stop">Stop here</button></div></div>`) : '';
   const frac = st.goal > 0 ? st.today / st.goal : 1, ex = st.goal > 0 && st.today > st.goal ? (st.today - st.goal) / st.goal : 0;
   return `<p class="eyebrow">Now tracking</p>
     <div class="tp-name"><span class="h-dot" style="--hc:${esc(h.color)}"></span>${esc(h.name)}</div>
     <div class="tp-row">${ringHTML(frac, ex, h.color)}<div><div class="timer-digits">${fmtClock(sess)}</div><p class="muted" style="font-size:13px">this session</p></div></div>
     <p style="font-size:14px">Today <b class="mono">${fmtExact(st.today)}</b> of ${fmtMin(st.goal)}${st.goal > 0 && st.today < st.goal ? ` · <span class="muted">${fmtExact(st.goal - st.today)} to go</span>` : ''}</p>
     ${st.today >= st.goal && st.today - st.goal >= 0.02 ? `<p class="tp-extra">Goal reached. +${fmtClock((st.today - st.goal) * 60)} extra is going into your Extra time bank below.</p>` : ''}
+    ${mini}
     <p class="hint">When the goal is reached: ${h.onGoal === 'stop' ? 'the timer stops' : 'keep counting'} · celebration ${h.celebrate.on ? 'on' : 'off'}</p>
     ${btns}`;
 }
@@ -1332,7 +1519,8 @@ function weekChartHTML(now) {
   const tot = cols.reduce((s, c) => s + c.dn, 0), totp = cols.reduce((s, c) => s + c.pl, 0);
   return `<div class="sec-head"><h3>${thisWeek ? 'This week' : 'Week of ' + fmtRange(b.s, b.e)}</h3><span class="mono" style="font-size:13px">${fmtMin(tot)} / ${fmtMin(totp)}</span></div>
     <div class="wk-chart">${cols.map((c, i) => `<button class="c ${c.k === tk ? 'today' : ''} ${c.k === V.k ? 'sel' : ''}" data-act="view-day" data-k="${c.k}" data-fk="wk-${c.k}" title="${DOW[i]} ${fmtShort(c.d)}: ${fmtMin(c.dn)} done of ${fmtMin(c.pl)} planned" aria-label="View ${DOW[i]} ${fmtShort(c.d)}"><div class="b"><div class="pl" style="height:${c.pl / mx * 100}%"></div><div class="dn" style="height:${c.dn / mx * 100}%"></div></div>${DOW[i][0]}</button>`).join('')}</div>
-    <div class="legend"><span><i style="background:color-mix(in srgb,var(--accent) 22%,transparent)"></i>Planned</span><span><i style="background:var(--accent)"></i>Done</span><span>Tap a day to view it</span></div>`;
+    <div class="legend"><span><i style="background:color-mix(in srgb,var(--accent) 22%,transparent)"></i>Planned</span><span><i style="background:var(--accent)"></i>Done</span><span>Tap a day to view it</span></div>
+    <button class="btn sm ${dowIdx(now) >= 5 || dowIdx(now) === 0 ? 'primary' : ''}" style="justify-self:start" data-act="review" data-fk="review">${dowIdx(now) === 0 ? 'Review last week' : dowIdx(now) >= 5 ? 'Review your week' : 'Week review'}</button>`;
 }
 function bankHTML(now) {
   const items = S.plan.habits.map(h => {
@@ -1524,7 +1712,7 @@ function openEditor(hid) {
   ED = {h, isNew: !hid, ref: new Date(), confirmDel: false, targetTouched: !!hid, err: ''};
   renderEditor(); setTimeout(() => { const n = $('#ed-name'); if (n) n.focus(); }, 30);
 }
-function closeModal() { $('#modal-root').innerHTML = ''; ED = null; BK = null; SU = null; AJ = null; document.body.style.overflow = ''; }
+function closeModal() { $('#modal-root').innerHTML = ''; RV = null; ED = null; BK = null; SU = null; AJ = null; document.body.style.overflow = ''; }
 function renderEditor() {
   const h = ED.h, back = $('.modal-back'), sc = back ? back.scrollTop : 0;
   const daily = h.period === 'daily';
@@ -1666,12 +1854,13 @@ function deleteHabit() {
 function openSettings() {
   const st = S.plan.settings;
   $('#modal-root').innerHTML = `<div class="modal-back" data-act="close-back"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="set-title" style="width:min(520px,100%)">
-    <div class="m-head"><div><p class="eyebrow">Settings</p><h2 id="set-title">Sound and saving</h2></div><button class="icon-btn" data-act="close-modal" aria-label="Close">×</button></div>
+    <div class="m-head"><div><p class="eyebrow">Settings</p><h2 id="set-title">Sound, reminders and saving</h2></div><button class="icon-btn" data-act="close-modal" aria-label="Close">×</button></div>
     <div class="m-body">
       <label class="switch"><input type="checkbox" id="set-sound" ${st.sound ? 'checked' : ''}><span class="tr"></span><span>Play celebration sounds</span></label>
       <div class="field"><label class="lbl" for="set-vol">Volume <span class="mono muted" id="set-vol-v">${st.volume}%</span></label><input class="range" type="range" id="set-vol" min="0" max="100" step="5" value="${st.volume}"></div>
       <div class="field"><span class="lbl">Try a celebration</span><div class="effects">${EFFECTS.map(e => `<button type="button" class="effect" data-act="try-effect" data-v="${e.id}">${effectThumb(e.id)}<span>${e.name}</span></button>`).join('')}</div>
         <p class="hint">Each habit picks its own effect and sound in its edit screen.</p></div>
+      <div class="field"><span class="lbl">Reminders</span><div class="field" id="remind-box">${remindBoxHTML()}</div></div>
       <div class="field"><span class="lbl">Where your habits are saved</span><p class="hint">${S.mode === 'cloud' ? 'In your claude.ai account. Only you can see your habits and times, and they follow you to any device where you open this page.' : 'In this browser only, on this device. Nobody else can see them. Clearing this site’s data removes them.'}</p></div>
       <div class="field"><span class="lbl">Backup</span><p class="hint">Download a backup file to keep your habits safe, or to move them to another browser or device.</p>
         <div class="head-actions"><button type="button" class="btn sm" data-act="backup-export">Download backup</button><button type="button" class="btn sm" data-act="backup-pick">Restore from backup</button></div>
@@ -1895,6 +2084,7 @@ function goSlide(i) {
 /* ---------- about: developer log (shared, editors post) ---------- */
 /* Developer log for the GitHub version: add a new entry at the top of this list, then commit. */
 const DEVLOG = [
+  {"id": "v0-10-start-easier", "kind": "Feature", "version": "v0.10", "createdAt": "2026-11-09T01:00:00.000Z", "title": "Reminders, Just 5 min, Inbox and Week review", "body": "Four ways to make starting easier.\n• Reminders: Settings → Reminders sends a notification when a daily time slot starts (or 5 or 10 minutes before), while Orbit is open. \"Add slots to my calendar\" puts them in your phone's calendar with alerts, so they work even when Orbit is closed.\n• Just 5 min: a button next to Start. The timer runs with a small goal of five minutes, then asks if you want to keep going.\n• Inbox: a quick notepad in the right column for thoughts and to-dos that don't belong to a habit yet. Tick them off, then clear them.\n• Streaks and Week review: habit cards show how many days in a row you've met the goal. Week review (under This week) sums up your week, compares it with the week before, and gives you space to note what went well and what to try next."},
   {"id": "v0-9-links-notes", "kind": "Feature", "version": "v0.9", "createdAt": "2026-11-06T20:00:00.000Z", "title": "Links and notes on every habit", "body": "Less switching between apps before you get started.\n• Edit a habit → Links & notes: save the websites, files or map addresses you use for it. They show on the habit card, one tap to open.\n• Turn on \"Open these links when I press Start\" and Start opens them for you along with the timer.\n• Write notes for each habit (steps, page numbers, a reminder to yourself). They show on the card, and long notes fold up.\n• Links and notes are saved with your habits and included in Backup."},
   {"id": "v0-8-install-backup", "kind": "Feature", "version": "v0.8", "createdAt": "2026-10-17T16:00:00.000Z", "title": "Install Orbit and back up your data", "body": "• Add Orbit to your home screen and it opens like an app, even without internet.\n• Settings → Backup: download a backup file of your habits and times, and restore it in another browser or device.\n• The empty planner now starts with just New habit."},
   {"id": "v0-7-github-pages", "kind": "Feature", "version": "v0.7", "createdAt": "2026-10-15T16:00:00.000Z", "title": "Orbit moves to GitHub Pages", "body": "Orbit is now its own website at muxiiiii.github.io/orbit-habit-planner. Your habits and times are saved in your own browser, so they stay private on your device."},
@@ -1977,7 +2167,16 @@ document.addEventListener('click', e => {
     case 'settings': openSettings(); break;
     case 'new-habit': openEditor(null); break;
     case 'edit': openEditor(id); break;
-    case 'start': { startTimer(id); const sh = habit(id); if (sh && sh.openOnStart && sh.links.length && openLinks(sh)) toast('Your browser blocked some links. Tap them on the habit card instead.'); break; }
+    case 'start': case 'mini': {
+      startTimer(id);
+      if (act === 'mini' && S.plan.active && S.plan.active.habitId === id && !S.plan.active.forDay) { S.plan.active.mini = true; S.plan.active.miniDone = false; Store.savePlan(); renderPlanner(); focusKey('stop-' + id); }
+      const sh = habit(id); if (sh && sh.openOnStart && sh.links.length && openLinks(sh)) toast('Your browser blocked some links. Tap them on the habit card instead.'); break; }
+    case 'mini-keep': if (S.plan.active) { delete S.plan.active.mini; delete S.plan.active.miniDone; Store.savePlan(); renderPlanner(); focusKey('pause-panel'); } break;
+    case 'inbox-del': S.plan.inbox = S.plan.inbox.filter(x => x.id !== id); Store.savePlan(); renderInbox(); break;
+    case 'inbox-clear': S.plan.inbox = S.plan.inbox.filter(x => !x.done); Store.savePlan(); renderInbox(); break;
+    case 'review': openReview(); break;
+    case 'rv-step': if (RV) { const n = addDays(RV.ws, 7 * +v); if (+v < 0 || dkey(n) <= dkey(new Date())) { RV.ws = n; renderReview(); } } break;
+    case 'ics': exportICS(); break;
     case 'memo-toggle': if (MEMO_OPEN.has(id)) MEMO_OPEN.delete(id); else MEMO_OPEN.add(id); renderPlanner(); break;
     case 'link-add': if (ED) { ED.h.links.push({label: '', url: ''}); renderEditor(); const ins = document.querySelectorAll('.link-row .lr-url'); if (ins.length) ins[ins.length - 1].focus(); } break;
     case 'link-del': if (ED) { ED.h.links.splice(+v, 1); renderEditor(); } break;
@@ -2064,11 +2263,13 @@ document.addEventListener('click', e => {
   }
 });
 $('#celebrate').addEventListener('click', closeCele);
-document.addEventListener('submit', e => { if (e.target.id === 'dl-form') { e.preventDefault(); submitDevlog(); } });
+document.addEventListener('submit', e => { if (e.target.id === 'dl-form') { e.preventDefault(); submitDevlog(); } else if (e.target.id === 'inbox-form') { e.preventDefault(); addInbox(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!$('#celebrate').hidden) closeCele(); else if (!$('#calpop').hidden) { openCal(false); $('#cal-btn').focus(); } else if ($('.modal-back')) closeModal(); } });
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'set-vol') { S.plan.settings.volume = +t.value; $('#set-vol-v').textContent = t.value + '%'; return; }
+  if (t.id === 'inbox-in') { INBOX_DRAFT = t.value; return; }
+  if (t.dataset.rv && RV) { const wk = dkey(bounds('weekly', RV.ws).s); const r = S.plan.reviews[wk] || (S.plan.reviews[wk] = {}); r[t.dataset.rv] = t.value; clearTimeout(RV.t); RV.t = setTimeout(() => Store.savePlan(), 600); return; }
   if (t.dataset.bk) { bkRefresh(); return; }
   if (AJ && /^aj-[hms]$/.test(t.id)) { ajRead(); return; }
   if (t.dataset.su && SU) { const v = SU.vals[t.dataset.su] || (SU.vals[t.dataset.su] = {}); v[t.dataset.f] = t.value; if (t.dataset.f === 'min') suSum(); return; }
@@ -2107,6 +2308,9 @@ document.addEventListener('change', e => {
   }
   if (t.id === 'nd-dm') { setNudge({danmaku: t.checked}, false); if (!t.checked) $('#danmaku').innerHTML = ''; return; }
   if (t.id === 'set-sound') { S.plan.settings.sound = t.checked; Store.savePlan(); return; }
+  if (t.id === 'set-remind') { setReminders(t.checked); return; }
+  if (t.id === 'set-lead') { S.plan.settings.remind.lead = +t.value; Store.savePlan(); return; }
+  if (t.dataset.inbox) { const x = S.plan.inbox.find(y => y.id === t.dataset.inbox); if (x) { x.done = t.checked; Store.savePlan(); renderInbox(); } return; }
   if (!ED) return; const h = ED.h;
   if (t.name === 'ongoal') h.onGoal = t.value;
   else if (t.id === 'ed-carry') h.carryExtra = t.checked;
