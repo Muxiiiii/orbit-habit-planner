@@ -1,6 +1,6 @@
 /* Orbit service worker: lets the app open offline.
    Pages load from the network first (so updates show up right away) and fall back to the cache when offline. */
-const CACHE = 'orbit-v2';
+const CACHE = 'orbit-v3';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -32,4 +32,13 @@ self.addEventListener('fetch', e => {
     if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
     return res;
   })));
+});
+
+// Tapping a reminder brings Orbit to the front, or opens it.
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({type: 'window', includeUncontrolled: true}).then(list => {
+    const open = list.find(c => 'focus' in c);
+    return open ? open.focus() : self.clients.openWindow('./');
+  }));
 });
